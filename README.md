@@ -1,102 +1,83 @@
-# python-package-template
-This is a template on how to package a simple Python project
+# pycamerad
 
-## Table of Contents
+Typed Python access to a camerad camera, in process, with no camerad daemon and
+no text protocol in between.
 
-1. Installation
-2. Setting Up Your Package
-3. Installing Dependencies
-4. Building Your Package
-5. Publishing to PyPI
+Every command on camerad's `Camera::Interface` is string in and string out, so
+`exptime("0")` answers `"0.000"` and `power("on")` answers `"ON"`. Converting
+that to and from Python types is the same work for every instrument, so
+`pycamerad` does it once.
 
-## Installation
+## Prerequisite
 
-To install the package in editable mode (ideal for development), follow these steps:
-
-### Requirements
-
-- Python 3.7 or higher
-- `pip` (ensure it's the latest version)
-- `setuptools` 42 or higher (for building the package)
-
-### 1. Clone the repository
-
-First, clone the repository to your local machine:
+This wraps `camera_interface`, a pybind11 module built from
+[camera-interface](https://github.com/CaltechOpticalObservatories/camera-interface).
+It is a compiled extension built per instrument rather than a package on an
+index, so it cannot be a dependency here and has to be built separately.
+pybind11 is needed only to compile it, not to import it:
 
 ```bash
-git clone https://github.com/yourusername/your-package-name.git
-cd your-package-name
+cd camera-interface/build
+pip install pybind11
+cmake -DCONTROLLER=archon -DINSTRUMENT=hispec_tracking_camera \
+      -DBUILD_PYTHON_MODULE=ON ..
+make camera_interface
+export PYTHONPATH=$PWD/../lib
 ```
 
-### 2. Set Up Your Python Environment
+Without it, `Camerad.from_config()` raises `ModuleNotAvailable` explaining what
+to build, rather than an ImportError from somewhere deeper.
 
-Create a virtual environment for your package:
+## Usage
+
+```python
+from pycamerad import Camerad, instrument_name
+
+print(instrument_name())              # which build got loaded
+
+camera = Camerad.from_config("hispecatc.cfg")
+camera.require_instrument("hispec_tracking_camera")
+
+camera.initialize()                   # open, load firmware, power on
+camera.exptime(0.5)                   # -> 0.5
+camera.expose(4)
+
+print(camera.power())                 # -> True
+print(camera.basename("science"))     # -> 'science'
+print(camera.output_status())         # -> [OutputStatus(name='fits', ...)]
+```
+
+A failed command raises `RuntimeError` carrying camerad's reason.
+
+`output_status()` is a snapshot, never a barrier. The FITS writer queues and
+drops frames by design, because disk is slower than acquisition can be, so a
+caller that needs to see a file polls this rather than waiting on the writer.
+
+## Instrument commands
+
+Commands that exist for only one instrument are deliberately absent. Subclass
+`Camerad` and wrap `instrument_cmd` for those, so an instrument's vocabulary
+lives with the instrument:
+
+```python
+class TrackingCamera(Camerad):
+    def set_guiding_roi(self, y0, y1, x0, x1):
+        self.instrument_cmd("roi", f"{y0} {y1} {x0} {x1}")
+
+    def initialize(self):
+        super().initialize()
+        self.instrument_cmd("h2rg_init")
+```
+
+`instrument_commands()` enumerates what the loaded build actually handles, and
+`controller_cmd()` reaches controller-specific commands such as `mode`, `raw`
+and `heater`.
+
+## Tests
+
+The suite runs against a stand-in camera, so neither the extension nor
+hardware is needed:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
+python -m unittest discover -s tests
 ```
-
-### 3. Install Build Dependencies
-
-Make sure setuptools and pip are up to date:
-
-```bash
-pip install --upgrade pip setuptools wheel
-```
-
-## Setting Up Your Package
-### 1. Update pyproject.toml
-
-The pyproject.toml file contains the configuration for building and packaging your Python project. You'll want to customize this to reflect your package's name, version, dependencies, license, etc.
-```yml
-    name: The name of your package.
-    version: The version of your package (e.g., "0.1.0").
-    dependencies: List any runtime dependencies your package requires (e.g., requests, numpy).
-    license: Specify your package's license, either as text or a file. For example:
-        license = { text = "MIT" }
-        Or, if you have a LICENSE file: license = { file = "LICENSE.txt" }
-```
-
-### 2. Update README.md
-
-Edit this README file to reflect your package's functionality.
-
-## Installing Dependencies
-
-To install your package in editable mode for development, use the following command:
-
-```bash
-pip install -e .
-```
-
-This will install the package, allowing you to edit it directly and have changes take effect immediately without reinstalling.
-
-To install any optional dependencies, such as development dependencies, use:
-
-```bash
-pip install -e .[dev]
-```
-
-## Building Your Package
-
-To build your package for distribution (e.g., for uploading to PyPI), you can use:
-
-```bash
-python -m build
-```
-
-This will create .tar.gz and .whl files in the dist/ directory.
-
-## Publishing to PyPI
-
-To publish your package to PyPI, you can use the twine tool:
-
-```bash
-pip install twine
-twine upload dist/*
-```
-
-You'll need to have a PyPI account and have your credentials set up for this.
-
----
