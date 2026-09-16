@@ -41,9 +41,10 @@ def _require_module() -> Any:
     """Return the camera_interface module, or explain why it is missing."""
     if camera_interface is None:
         raise ModuleNotAvailable(
-            "camera_interface is not importable. Build camera-interface with "
-            "-DBUILD_PYTHON_MODULE=ON and install or add its lib directory to "
-            "PYTHONPATH."
+            "camera_interface is not importable. Install it into this "
+            "environment from a camera-interface checkout: pip install "
+            "<camera-interface> "
+            "--config-settings=cmake.define.INSTRUMENT=<instrument>"
         ) from _IMPORT_ERROR
     return camera_interface
 

@@ -156,7 +156,7 @@ class TestBuildIdentity(unittest.TestCase):
         with mock.patch("camerad.camera_interface", None):
             with self.assertRaises(ModuleNotAvailable) as raised:
                 Camerad.from_config("/tmp/nothing.cfg")
-        self.assertIn("BUILD_PYTHON_MODULE", str(raised.exception))
+        self.assertIn("pip install", str(raised.exception))
 
 
 if __name__ == "__main__":
