@@ -11,16 +11,12 @@ wrap :meth:`Camerad.instrument_cmd` for those.
 
 from __future__ import annotations
 
+import functools
+import importlib
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
-try:
-    import camera_interface
-except ImportError as exc:
-    camera_interface = None
-    _IMPORT_ERROR: Optional[ImportError] = exc
-else:
-    _IMPORT_ERROR = None
+DEFAULT_MODULE_NAME = "camera_interface"
 
 
 class ModuleNotAvailable(RuntimeError):
@@ -37,26 +33,28 @@ class OutputStatus:
     last_written: str
 
 
-def _require_module() -> Any:
-    """Return the camera_interface module, or explain why it is missing."""
-    if camera_interface is None:
+# Imported on demand because the extension is optional and its name varies
+@functools.cache
+def _load_module(name: str) -> Any:
+    """Import a camera_interface build, or explain how to install it."""
+    try:
+        return importlib.import_module(name)
+    except ImportError as exc:
         raise ModuleNotAvailable(
-            "camera_interface is not importable. Install it into this "
-            "environment from a camera-interface checkout: pip install "
-            "<camera-interface> "
+            f"{name} is not importable. Install it into this environment from "
+            "a camera-interface checkout: pip install <camera-interface> "
             "--config-settings=cmake.define.INSTRUMENT=<instrument>"
-        ) from _IMPORT_ERROR
-    return camera_interface
+        ) from exc
 
 
-def instrument_name() -> str:
-    """Return the instrument the loaded module was built for."""
-    return _require_module().instrument_name()
+def instrument_name(module_name: str = DEFAULT_MODULE_NAME) -> str:
+    """Return the instrument the named module was built for."""
+    return _load_module(module_name).instrument_name()
 
 
-def controller_name() -> str:
-    """Return the controller the loaded module was built for."""
-    return _require_module().controller_name()
+def controller_name(module_name: str = DEFAULT_MODULE_NAME) -> str:
+    """Return the controller the named module was built for."""
+    return _load_module(module_name).controller_name()
 
 
 def _on_off(value: bool) -> str:
@@ -72,7 +70,12 @@ class Camerad:
 
     Construct with :meth:`from_config` for normal use. The constructor takes an
     already-built camera so a test can pass a stand-in.
+
+    A subclass bound to one instrument sets :attr:`MODULE_NAME` to the build it
+    needs.
     """
+
+    MODULE_NAME = DEFAULT_MODULE_NAME
 
     def __init__(self, camera: Any) -> None:
         self._camera = camera
@@ -86,7 +89,7 @@ class Camerad:
         steps camerad does at startup. It does not connect; call
         :meth:`open` or :meth:`initialize` for that.
         """
-        module = _require_module()
+        module = _load_module(cls.MODULE_NAME)
         return cls(module.Camera(config_path, log_to_stderr=log_to_stderr))
 
     @property
@@ -195,9 +198,9 @@ class Camerad:
 
     def require_instrument(self, expected: str) -> None:
         """Raise unless the loaded module was built for the expected instrument."""
-        actual = instrument_name()
+        actual = instrument_name(self.MODULE_NAME)
         if actual != expected:
             raise ModuleNotAvailable(
-                f"camera_interface was built for instrument {actual!r}, "
+                f"{self.MODULE_NAME} was built for instrument {actual!r}, "
                 f"but {expected!r} is required"
             )

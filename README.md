@@ -26,11 +26,23 @@ build environment, so it never has to be installed by hand. A compiler and
 camerad's own libraries do have to be present; camera-interface's README lists
 them.
 
-The instrument is fixed when the module is built, so one environment holds one
-instrument. `instrument_name()` reports which build got loaded.
+The instrument is fixed when the module is built, so two instruments mean two
+builds. Build them under different names with camera-interface's
+`-DCAMERAD_MODULE_NAME=` and they can be installed side by side; a subclass
+then names the one it needs:
+
+```python
+class TrackingCamera(Camerad):
+    MODULE_NAME = "camera_interface_tracking"
+```
+
+`MODULE_NAME` defaults to `camera_interface`, and the module is imported on
+first use rather than when pycamerad is imported. `instrument_name()` reports
+which build got loaded, and takes a module name for anything but the default.
 
 Without the module, `Camerad.from_config()` raises `ModuleNotAvailable` naming
-the command to run, rather than an ImportError from somewhere deeper.
+the module and the command to run, rather than an ImportError from somewhere
+deeper.
 
 ## Usage
 

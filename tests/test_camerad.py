@@ -153,9 +153,14 @@ class TestBuildIdentity(unittest.TestCase):
                 Camerad(FakeCamera()).require_instrument("hispec_tracking_camera")
 
     def test_from_config_explains_a_missing_extension(self):
-        with mock.patch("camerad.camera_interface", None):
-            with self.assertRaises(ModuleNotAvailable) as raised:
-                Camerad.from_config("/tmp/nothing.cfg")
+        class Absent(Camerad):
+            """Bound to a module name that is never installed."""
+
+            MODULE_NAME = "camera_interface_absent"
+
+        with self.assertRaises(ModuleNotAvailable) as raised:
+            Absent.from_config("/tmp/nothing.cfg")
+        self.assertIn("camera_interface_absent", str(raised.exception))
         self.assertIn("pip install", str(raised.exception))
 
 
