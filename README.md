@@ -86,8 +86,14 @@ class TrackingCamera(Camerad):
 ```
 
 `instrument_commands()` enumerates what the loaded build actually handles, and
-`controller_cmd()` reaches controller-specific commands such as `mode`, `raw`
-and `heater`.
+`controller_cmd()` reaches controller-specific commands such as `mode` and
+`raw`. `bias()`, `heater()` and `sensor()` wrap the ones a detector daemon
+reaches for most.
+
+`read_acf()` parses an ACF into the host without writing it to the controller,
+for recovering after a restart when the controller already holds the
+configuration. Unlike `load()` it applies nothing, so the detector's power is
+undisturbed.
 
 ## Tests
 
