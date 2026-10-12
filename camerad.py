@@ -111,6 +111,16 @@ class Camerad:
         """Load firmware, defaulting to DEFAULT_FIRMWARE from the config."""
         self._camera.load(firmware)
 
+    def read_acf(self, firmware: str = "") -> str:
+        """Parse an ACF into the host without writing it to the controller.
+
+        Gives the configuration a read needs, bias values, labels and the
+        firmware-loaded state, while leaving the controller untouched. Unlike
+        :meth:`load` this sends no configuration and performs no apply, so the
+        detector's power is not disturbed.
+        """
+        return self.controller_cmd("readacf", firmware).strip()
+
     def power(self, on: Optional[bool] = None) -> bool:
         """Query whether power is on, or set it, returning the resulting state."""
         reply = self._camera.power("" if on is None else _on_off(on))
@@ -181,6 +191,22 @@ class Camerad:
     def controller_cmd(self, command: str, args: str = "") -> str:
         """Run a controller-specific command such as mode, raw or heater."""
         return self._camera.controller_cmd(command, args)
+
+    def bias(self, args: str = "") -> str:
+        """Read or set a bias channel, or list them.
+
+        Takes the command's own grammar, so ``bias("9 2")`` reports a channel
+        and ``bias("list")`` reports every configured one.
+        """
+        return self._camera.bias(args).strip()
+
+    def heater(self, args: str) -> str:
+        """Read or set a heater, as ``<module> <A|B> [...]``."""
+        return self.controller_cmd("heater", args).strip()
+
+    def sensor(self, args: str) -> str:
+        """Read or set a temperature sensor, as ``<module> <A|B|C> [...]``."""
+        return self.controller_cmd("sensor", args).strip()
 
     ### introspection
 

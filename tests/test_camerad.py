@@ -62,6 +62,9 @@ class FakeCamera:
         self.calls.append((command, args))
         return self.replies.get(command, "")
 
+    def bias(self, args=""):
+        return self._record("bias", args)
+
     def output_status(self):
         return self.replies.get("output_status", [])
 
@@ -162,6 +165,38 @@ class TestBuildIdentity(unittest.TestCase):
             Absent.from_config("/tmp/nothing.cfg")
         self.assertIn("camera_interface_absent", str(raised.exception))
         self.assertIn("pip install", str(raised.exception))
+
+
+class TestModules(unittest.TestCase):
+    """Bias, heater and sensor passthroughs."""
+
+    def test_bias_passes_the_command_grammar_through(self):
+        fake = FakeCamera({"bias": 'MOD9 chan 2 HVLC V=24.0 LABEL="Output Drain b"\n'})
+        camera = Camerad(fake)
+        self.assertIn("Output Drain b", camera.bias("9 2"))
+        self.assertEqual(("bias", "9 2"), fake.calls[-1])
+
+    def test_bias_strips_the_reply(self):
+        camera = Camerad(FakeCamera({"bias": "  MOD9 chan 2 HVLC V=24.0  \n"}))
+        self.assertTrue(camera.bias("9 2").endswith("V=24.0"))
+
+    def test_heater_and_sensor_route_through_the_controller(self):
+        fake = FakeCamera({"heater": "20.0", "sensor": "100000"})
+        camera = Camerad(fake)
+        self.assertEqual("20.0", camera.heater("11 A"))
+        self.assertEqual(("heater", "11 A"), fake.calls[-1])
+        self.assertEqual("100000", camera.sensor("11 A"))
+        self.assertEqual(("sensor", "11 A"), fake.calls[-1])
+
+    def test_read_acf_does_not_send_the_load_command(self):
+        fake = FakeCamera({"readacf": "ok"})
+        self.assertEqual("ok", Camerad(fake).read_acf())
+        self.assertEqual([("readacf", "")], fake.calls)
+
+    def test_read_acf_passes_a_named_firmware_through(self):
+        fake = FakeCamera()
+        Camerad(fake).read_acf("/tmp/other.acf")
+        self.assertEqual(("readacf", "/tmp/other.acf"), fake.calls[-1])
 
 
 if __name__ == "__main__":
